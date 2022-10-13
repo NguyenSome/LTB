@@ -37,7 +37,7 @@ def UCB_grid(par, p_0, p_1, tau, time):
         mu_hat = arr[1][arm_index]/n
         arr[3][arm_index] = mu_hat
 
-        ucb = mu_hat + sqrt((2  * np.log(t + 1)) / n)
+        ucb = mu_hat + sqrt((2  * np.log(time + 1)) / n)
         arr[4][arm_index] = ucb
 
         # Theoretical regret
@@ -74,7 +74,7 @@ def UCB(tau_hat,N,p_0, p_1, tau, total_reg):
         # Updating UCB
         samp_num[arm_index] += 1
         mu_hat[arm_index]=samples[arm_index]/samp_num[arm_index]
-        ucb[arm_index] = mu_hat[arm_index]+ sqrt((2*np.log(i+1))/samp_num[arm_index])
+        ucb[arm_index] = mu_hat[arm_index]+ sqrt((2*np.log(N+1))/samp_num[arm_index])
             
         # Theoretical regret  
         ucb_reward = (arm >= tau)*(p_1-p_0) + p_0 - arm
@@ -188,7 +188,7 @@ def Alg13_NBS(delta_hat, R, T_remain, p_0, p_1, tau, total_regret, time):
 
     c = min(l_diff, r_diff)+0.5
 
-    N = math.ceil((16*c*(1-c))*np.log2(time*np.log2(time))/(delta_hat**2))      # err_delta = 1 / (T * np.log2(T))
+    N = math.ceil((16*c*(1-c))*math.log(time*np.log2(time))/(delta_hat**2))      # err_delta = 1 / (T * np.log2(T))
         
     while R-L >= (2*epsilon_nbs * (np.log2(time)**2) / delta_hat) and T_remain > 0:
         # Get the new midpoint
