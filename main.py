@@ -110,7 +110,7 @@ def NBS(delta_hat, R, T_remain, p_0, p_1, tau, total_regret, time):
     NBS_regret += N * (opt_NBS_reward - NBS_reward)
     T_remain -= N 
         
-    while R-L >= (epsilon_nbs * (np.log2(time)**2) / delta_hat) and T_remain > 0: 
+    while R-L >= (2*epsilon_nbs * (np.log2(time)**2) / delta_hat) and T_remain > 0: 
         # Get the new midpoint
         m = (L+R)/2
         if (T_remain - N < 0):
@@ -166,16 +166,31 @@ def Alg13_NBS(delta_hat, R, T_remain, p_0, p_1, tau, total_regret, time):
 
     T_remain -= 2*N 
 
-    p = min((hat_p_L)-(delta_hat/(2*sqrt(2))), (hat_p_L)+(delta_hat/(2*sqrt(2))) )
-    l_diff = abs(p-0.5)
+    p_lower = (hat_p_L)-(delta_hat/(2*sqrt(2)))
+    p_upper = (hat_p_L)+(delta_hat/(2*sqrt(2)))
 
-    p = min((hat_p_R)-(delta_hat/(2*sqrt(2))), (hat_p_R)+(delta_hat/(2*sqrt(2))) )
-    r_diff = abs(p-0.5)
+    if p_upper <= 0.5:
+        l_diff = abs(p_upper-0.5)      # entire interval is left of 0.5
+    elif p_lower >= 0.5:
+        l_diff = abs(p_lower - 0.5)     # entire interval is right of 0.5
+    else: 
+        l_diff = 0                          # interval contains 0.5
+
+    p_lower = (hat_p_R)-(delta_hat/(2*sqrt(2)))
+    p_upper = (hat_p_R)+(delta_hat/(2*sqrt(2)))
+
+    if p_upper <= 0.5:
+        r_diff = abs(p_upper-0.5)      # entire interval is left of 0.5
+    elif p_lower >= 0.5:
+        r_diff = abs(p_lower - 0.5)     # entire interval is right of 0.5
+    else: 
+        r_diff = 0                          # interval contains 0.5  
+
     c = min(l_diff, r_diff)+0.5
 
     N = math.ceil((16*c*(1-c))*np.log2(time*np.log2(time))/(delta_hat**2))      # err_delta = 1 / (T * np.log2(T))
         
-    while R-L >= (epsilon_nbs * (np.log2(time)**2) / delta_hat) and T_remain > 0:
+    while R-L >= (2*epsilon_nbs * (np.log2(time)**2) / delta_hat) and T_remain > 0:
         # Get the new midpoint
         m = (L+R)/2
         if (T_remain - N < 0):
@@ -501,10 +516,12 @@ def run4(i, seed):
     global rng
     rng = np.random.default_rng(seed)
 
-    # Experiment 4: NBS test
+    # Experiment 4: NBS test (uncomment lines for original Leftist NBS)
+#    leftist_results1=Leftist(p_0, p_1, tau[i], T)
     leftist_results2=Leftist_Alg13(p_0, p_1, tau[i], T)
     leftist_results3=Leftist_Alg14(p_0, p_1, tau[i], T)
 
+#    return leftist_results1[:6], leftist_results2[:6], leftist_results3[:6]
     return leftist_results2[:6], leftist_results3[:6]
 
 
@@ -523,7 +540,7 @@ n=x*reps
 tau = np.empty(n)
 taulin = np.linspace(0.01,0.4,x)
 
-x2=15                                # Number of unique values sampled
+x2=15
 n2=x2*reps
 
 varying_p1 = np.empty(n2)
@@ -551,16 +568,16 @@ for i in range(x3):
 
 
 # Record keeping
-exp1_matrix_to_save=np.empty((n, 6))
-exp2_matrix_to_save=np.empty((n2, 6))
-exp3_matrix_to_save=np.empty((n3, 6))
-exp1_grid_UCB=np.empty((n, 3))
-exp2_grid_UCB=np.empty((n2, 3))
-exp3_grid_UCB=np.empty((n3, 3))
+# exp1_matrix_to_save=np.empty((n, 6))
+# exp2_matrix_to_save=np.empty((n2, 6))
+# exp3_matrix_to_save=np.empty((n3, 6))
+# exp1_grid_UCB=np.empty((n, 3))
+# exp2_grid_UCB=np.empty((n2, 3))
+# exp3_grid_UCB=np.empty((n3, 3))
 
 # NBS testing
-alg2_new_nbs=np.empty((n, 6))
-alg3_nbs=np.empty((n, 6))
+alg13_nbs=np.empty((n, 6))
+alg14_nbs=np.empty((n, 6))
 
 if __name__ == "__main__":
     
@@ -614,15 +631,17 @@ if __name__ == "__main__":
 
     # Experiment 4 - Differing NBS
     with Pool(cpu) as pool:
-        # old check with alg 2, alg 3
+        # old check with alg 13, alg 14
+        # uncomment the bottom line to run original leftist
+#        exp1_left, exp2_left, exp3_left = zip(*pool.starmap(run4, zip(range(n), seeds)))
         exp2_left, exp3_left = zip(*pool.starmap(run4, zip(range(n), seeds)))
 
     pool.close()
     pool.join()
 
     for i in range(n):
-        alg2_new_nbs[i,:]=exp2_left[i]
-        alg3_nbs[i,:]= exp3_left[i]
+        alg13_nbs[i,:]=exp2_left[i]
+        alg14_nbs[i,:]= exp3_left[i]
 
     end = timer()
 
@@ -635,5 +654,5 @@ if __name__ == "__main__":
     # np.savetxt("exp3_grid_UCB.csv", exp3_grid_UCB,  delimiter=',', header ='tau, best arm, UCB regret')
     # np.savetxt("exp3_saveddata.csv", exp3_matrix_to_save,  delimiter=',', header ='tau, best arm, Leftist regret, NSB regret, UCB regret, total regret')  
 
-    np.savetxt("alg2_new_nbs.csv", alg2_new_nbs,  delimiter=',', header ='tau, best arm, Leftist regret, NSB regret, UCB regret, total regret')  
-    np.savetxt("alg3_nbs.csv", alg3_nbs,  delimiter=',', header ='tau, best arm, Leftist regret, NSB regret, UCB regret, total regret')  
+    np.savetxt("alg13_nbs.csv", alg13_nbs,  delimiter=',', header ='tau, best arm, Leftist regret, NSB regret, UCB regret, total regret')  
+    np.savetxt("alg14_nbs.csv", alg14_nbs,  delimiter=',', header ='tau, best arm, Leftist regret, NSB regret, UCB regret, total regret')  
