@@ -290,9 +290,9 @@ def Leftist(p_0, p_1, tau, time):
     delta_hat = time
     T_remain = time
     epsilon = 1/8
-    ar = math.log(T) / sqrt(T)
+    ar = math.log(time) / sqrt(time)
     N=math.ceil(math.log(2*(time*np.log2(time)))/(2*(epsilon**2)))   # log(2/delta)/2epsilon^2
-    a = 1/sqrt(T)
+    a = math.log(time) / sqrt(time)
     best_arm = 0
     
     leftist_regret, NBS_regret, UCB_regret, total_regret = 0, 0, 0, 0
@@ -355,7 +355,7 @@ def Leftist_Alg13(p_0, p_1, tau, time):
     epsilon = 1/8
     ar = 1
     N=math.ceil(math.log(2*(time*np.log2(time)))/(2*(epsilon**2)))   # log(2/delta)/2epsilon^2
-    a = 1/sqrt(T)
+    a = math.log(time) / sqrt(time)
     best_arm = 0
     
     leftist_regret, NBS_regret, UCB_regret, total_regret = 0, 0, 0, 0
@@ -418,15 +418,14 @@ def Leftist_Alg14(p_0, p_1, tau, time):
     epsilon = 1/8
     ar = 1
     N=math.ceil(math.log(2*(time*np.log2(time)))/(2*(epsilon**2)))   # log(2/delta)/2epsilon^2
-    a = 1/sqrt(T)
+    a = math.log(time) / sqrt(time)
     best_arm = 0
     
     leftist_regret, NBS_regret, UCB_regret, total_regret = 0, 0, 0, 0
         
     while epsilon >= a:
 
-        ##Check to see if there are enough pulls lefts to sample arm
-        ## TODO is it needed?
+        # Check to see if there are enough pulls lefts to sample arm
         if (2*N > T_remain):
             break
         
@@ -517,12 +516,12 @@ def run4(i, seed):
     rng = np.random.default_rng(seed)
 
     # Experiment 4: NBS test (uncomment lines for original Leftist NBS)
-#    leftist_results1=Leftist(p_0, p_1, tau[i], T)
+    leftist_results1=Leftist(p_0, p_1, tau[i], T)
     leftist_results2=Leftist_Alg13(p_0, p_1, tau[i], T)
     leftist_results3=Leftist_Alg14(p_0, p_1, tau[i], T)
 
-#    return leftist_results1[:6], leftist_results2[:6], leftist_results3[:6]
-    return leftist_results2[:6], leftist_results3[:6]
+    return leftist_results1[:6], leftist_results2[:6], leftist_results3[:6]
+    # return leftist_results2[:6], leftist_results3[:6]
 
 
 # Global variables
@@ -576,6 +575,7 @@ for i in range(x3):
 # exp3_grid_UCB=np.empty((n3, 3))
 
 # NBS testing
+og_leftist=np.empty((n,6))
 alg13_nbs=np.empty((n, 6))
 alg14_nbs=np.empty((n, 6))
 
@@ -631,15 +631,15 @@ if __name__ == "__main__":
 
     # Experiment 4 - Differing NBS
     with Pool(cpu) as pool:
-        # old check with alg 13, alg 14
         # uncomment the bottom line to run original leftist
-#        exp1_left, exp2_left, exp3_left = zip(*pool.starmap(run4, zip(range(n), seeds)))
-        exp2_left, exp3_left = zip(*pool.starmap(run4, zip(range(n), seeds)))
+        exp1_left, exp2_left, exp3_left = zip(*pool.starmap(run4, zip(range(n), seeds)))
+        # exp2_left, exp3_left = zip(*pool.starmap(run4, zip(range(n), seeds)))
 
     pool.close()
     pool.join()
 
     for i in range(n):
+        og_leftist[i,:]=exp1_left[i]
         alg13_nbs[i,:]=exp2_left[i]
         alg14_nbs[i,:]= exp3_left[i]
 
@@ -654,5 +654,6 @@ if __name__ == "__main__":
     # np.savetxt("exp3_grid_UCB.csv", exp3_grid_UCB,  delimiter=',', header ='tau, best arm, UCB regret')
     # np.savetxt("exp3_saveddata.csv", exp3_matrix_to_save,  delimiter=',', header ='tau, best arm, Leftist regret, NSB regret, UCB regret, total regret')  
 
+    np.savetxt("og_leftist.csv", og_leftist,  delimiter=',', header ='tau, best arm, Leftist regret, NSB regret, UCB regret, total regret')  
     np.savetxt("alg13_nbs.csv", alg13_nbs,  delimiter=',', header ='tau, best arm, Leftist regret, NSB regret, UCB regret, total regret')  
     np.savetxt("alg14_nbs.csv", alg14_nbs,  delimiter=',', header ='tau, best arm, Leftist regret, NSB regret, UCB regret, total regret')  
