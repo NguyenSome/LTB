@@ -290,7 +290,7 @@ def Leftist(p_0, p_1, tau, time):
     delta_hat = time
     T_remain = time
     epsilon = 1/8
-    ar = math.log(time) / sqrt(time)
+    ar = 1
     N=math.ceil(math.log(2*(time*np.log2(time)))/(2*(epsilon**2)))   # log(2/delta)/2epsilon^2
     a = math.log(time) / sqrt(time)
     best_arm = 0
@@ -336,9 +336,7 @@ def Leftist(p_0, p_1, tau, time):
         # Commit to zero for remaining rounds (never actually occurs)
         # Theoretical regret
         leftist_regret += (opt_reward - p_0)*T_remain
-        total_regret += leftist_regret
-
-        print("leftist commit 0 ", leftist_regret)
+        total_regret = leftist_regret
 
     # tau returned for troubleshooting purposes
     return tau, best_arm, leftist_regret, NBS_regret, UCB_regret, total_regret
@@ -399,9 +397,7 @@ def Leftist_Alg13(p_0, p_1, tau, time):
         # Commit to zero for remaining rounds (never actually occurs)
         # Theoretical regret
         leftist_regret += (opt_reward - p_0)*T_remain
-        total_regret += leftist_regret
-
-        print("leftist commit 0 ", leftist_regret)
+        total_regret = leftist_regret
 
     # tau returned for troubleshooting purposes
     return tau, best_arm, leftist_regret, NBS_regret, UCB_regret, total_regret
@@ -461,9 +457,7 @@ def Leftist_Alg14(p_0, p_1, tau, time):
         # Commit to zero for remaining rounds (never actually occurs)
         # Theoretical regret
         leftist_regret += (opt_reward - p_0)*T_remain
-        total_regret += leftist_regret
-
-        print("leftist commit 0 ", leftist_regret)
+        total_regret = leftist_regret
 
     # tau returned for troubleshooting purposes
     return tau, best_arm, leftist_regret, NBS_regret, UCB_regret, total_regret
