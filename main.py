@@ -5,7 +5,7 @@ from multiprocessing import cpu_count, Pool
 from timeit import default_timer as timer
 
 
-def UCB_grid(par, p_0, p_1, tau):
+def UCB_grid(par, p_0, p_1, tau, time):
 
     opt_grid_reward = ComputeOptReward(p_0, p_1, tau) 
 
@@ -13,6 +13,7 @@ def UCB_grid(par, p_0, p_1, tau):
     # Array indices correspond to arm, sample total, number of pulls for arm, mu, ucb (in order)
     arr=np.zeros((5,num_arm), dtype=np.float32)
     ucb_grid_regret=0
+    
     
     # Step 1: Divide into partition
     partition_size = 1/par
@@ -22,8 +23,8 @@ def UCB_grid(par, p_0, p_1, tau):
             
             
     # Step 2: UCB
-    X = rng.uniform(0, 1, T) 
-    for t in range(T):
+    X = rng.uniform(0, 1, time) 
+    for t in range(time):
 
         # Pull arm with highest UCB
         arm_index = np.argmax(arr[4])
@@ -42,7 +43,7 @@ def UCB_grid(par, p_0, p_1, tau):
         # Theoretical regret
         ucb_grid_reward = (arm >= tau) * (p_1-p_0) + p_0 - arm
         ucb_grid_regret += opt_grid_reward - ucb_grid_reward 
-
+                
     tau_hat = arr[0][np.argmax(arr[4])]
 
     return tau, tau_hat, ucb_grid_regret
@@ -86,12 +87,13 @@ def UCB(tau_hat,N,p_0, p_1, tau, total_reg):
         return tau_hat, ucb_reg, total_reg
 
 
-def NBS(delta_hat, R, T_remain, p_0, p_1, tau, total_regret):
+def NBS(delta_hat, R, T_remain, p_0, p_1, tau, total_regret, time):
     # Noisy Binary Search
 
     opt_NBS_reward = ComputeOptReward(p_0, p_1, tau) 
+    epsilon_nbs = 1/time
 
-    N = math.ceil(4*math.log(1/err_delta)/(delta_hat**2)) 
+    N = math.ceil(4*math.log((time*np.log2(time)))/(delta_hat**2))  # 4log(1/delta)/epsilon^2
     L = 0
 
     NBS_regret = 0
@@ -103,13 +105,12 @@ def NBS(delta_hat, R, T_remain, p_0, p_1, tau, total_regret):
     p_R = (R < tau) * p_0 + (R >= tau) * p_1 
     hat_p_R = np.mean(rng.binomial(1, p_R, N)) 
     NBS_reward = (R >= tau) * (p_1 - p_0) + p_0 - R
-
     total_regret += N * (opt_NBS_reward - NBS_reward)    
 
     NBS_regret += N * (opt_NBS_reward - NBS_reward)
     T_remain -= N 
         
-    while R-L >= (epsilon_nbs * (np.log2(T)**2) / delta_hat) and T_remain > 0: 
+    while R-L >= (epsilon_nbs * (np.log2(time)**2) / delta_hat) and T_remain > 0: 
         # Get the new midpoint
         m = (L+R)/2
         if (T_remain - N < 0):
@@ -119,7 +120,6 @@ def NBS(delta_hat, R, T_remain, p_0, p_1, tau, total_regret):
         p_m = (m < tau) * p_0 + (m >= tau) * p_1 
         hat_p_m = np.mean(rng.binomial(1, p_m, N)) 
         NBS_reward = (m >= tau) * (p_1 - p_0) + p_0 - m
-
         total_regret += N * (opt_NBS_reward - NBS_reward)    
 
         NBS_regret += N * (opt_NBS_reward - NBS_reward)
@@ -136,17 +136,147 @@ def NBS(delta_hat, R, T_remain, p_0, p_1, tau, total_regret):
     return R, T_remain, NBS_regret, total_regret
 
 
-def Leftist(p_0, p_1, tau):
+def Alg13_NBS(delta_hat, R, T_remain, p_0, p_1, tau, total_regret, time):
+    # Noisy Binary Search
+
+    opt_NBS_reward = ComputeOptReward(p_0, p_1, tau) 
+    epsilon_nbs = 1/time
+
+    N = math.ceil(4*math.log((time*np.log2(time)))/(delta_hat**2))  # 4log(1/delta)/epsilon^2
+    L = 0
+
+    NBS_regret = 0
+
+    if N > T_remain:
+        return R, T_remain, NBS_regret, total_regret
+    
+   # Initial sample arm R
+    p_R = (R < tau) * p_0 + (R >= tau) * p_1 
+    hat_p_R = np.mean(rng.binomial(1, p_R, N)) 
+    NBS_reward = (R >= tau) * (p_1 - p_0) + p_0 - R
+    total_regret += N * (opt_NBS_reward - NBS_reward)    
+    NBS_regret += N * (opt_NBS_reward - NBS_reward)
+
+    # Initial sample arm L
+    p_L = (L < tau) * p_0 + (L >= tau) * p_1 
+    hat_p_L = np.mean(rng.binomial(1, p_L, N)) 
+    NBS_reward = (L >= tau) * (p_1 - p_0) + p_0 - L
+    total_regret += N * (opt_NBS_reward - NBS_reward)    
+    NBS_regret += N * (opt_NBS_reward - NBS_reward)
+
+    T_remain -= 2*N 
+
+    p = min((hat_p_L)-(delta_hat/(2*sqrt(2))), (hat_p_L)+(delta_hat/(2*sqrt(2))) )
+    l_diff = abs(p-0.5)
+
+    p = min((hat_p_R)-(delta_hat/(2*sqrt(2))), (hat_p_R)+(delta_hat/(2*sqrt(2))) )
+    r_diff = abs(p-0.5)
+    c = min(l_diff, r_diff)+0.5
+
+    N = math.ceil((16*c*(1-c))*np.log2(time*np.log2(time))/(delta_hat**2))      # err_delta = 1 / (T * np.log2(T))
+        
+    while R-L >= (epsilon_nbs * (np.log2(time)**2) / delta_hat) and T_remain > 0:
+        # Get the new midpoint
+        m = (L+R)/2
+        if (T_remain - N < 0):
+            N = T_remain
+
+
+        p_m = (m < tau) * p_0 + (m >= tau) * p_1 
+        hat_p_m = np.mean(rng.binomial(1, p_m, N)) 
+        NBS_reward = (m >= tau) * (p_1 - p_0) + p_0 - m
+        total_regret += N * (opt_NBS_reward - NBS_reward)    
+
+        NBS_regret += N * (opt_NBS_reward - NBS_reward)
+        T_remain -= N 
+
+        # Replacing arm L or R with m based on which side of tau we estimate m to be on.
+        if hat_p_R - hat_p_m >= delta_hat/2:
+            L = m
+
+        else: 
+            R = m
+            hat_p_R=hat_p_m
+        
+    return R, T_remain, NBS_regret, total_regret
+
+
+def Alg14_NBS(delta_hat, R, T_remain, p_0, p_1, tau, total_regret, time):
+    # Noisy Binary Search
+
+    opt_NBS_reward = ComputeOptReward(p_0, p_1, tau) 
+
+    N = math.ceil(math.log((time*np.log2(time)))/(delta_hat**2))    # log(1/delta)/epsilon^2
+    L = 0
+
+    NBS_regret = 0
+
+    if N > T_remain:
+        return R, T_remain, NBS_regret, total_regret
+    
+    T_remain -= N  
+    i = 1
+
+    epsilon_nbs = 1/time
+
+    while R-L >= (2*epsilon_nbs * (np.log2(time)**2) / delta_hat) and T_remain > 0:
+        # Get the new midpoint
+        m = (L+R)/2
+        if (T_remain - N < 0):
+            N = T_remain
+
+        if i % 2 == 0:
+            p_m = (m < tau) * p_0 + (m >= tau) * p_1 
+            hat_p_m = np.mean(rng.binomial(1, p_m, N)) 
+            NBS_reward = (m >= tau) * (p_1 - p_0) + p_0 - m
+            total_regret += N * (opt_NBS_reward - NBS_reward)    
+            NBS_regret += N * (opt_NBS_reward - NBS_reward)
+
+            p_l = (L < tau) * p_0 + (L >= tau) * p_1 
+            hat_p_L = np.mean(rng.binomial(1, p_l, N)) 
+            NBS_reward = (L >= tau) * (p_1 - p_0) + p_0 - L
+            total_regret += N * (opt_NBS_reward - NBS_reward)    
+            NBS_regret += N * (opt_NBS_reward - NBS_reward)
+
+            T_remain -= 2*N 
+
+            # Replacing arm L or R with m based on which side of tau we estimate m to be on.
+            if hat_p_L - hat_p_m >= delta_hat:
+                R = m
+
+        else:
+            p_m = (m < tau) * p_0 + (m >= tau) * p_1 
+            hat_p_m = np.mean(rng.binomial(1, p_m, N)) 
+            NBS_reward = (m >= tau) * (p_1 - p_0) + p_0 - m
+            total_regret += N * (opt_NBS_reward - NBS_reward)    
+            NBS_regret += N * (opt_NBS_reward - NBS_reward)
+
+            p_R = (R < tau) * p_0 + (R >= tau) * p_1 
+            hat_p_R = np.mean(rng.binomial(1, p_R, N)) 
+            NBS_reward = (R >= tau) * (p_1 - p_0) + p_0 - R
+            total_regret += N * (opt_NBS_reward - NBS_reward)    
+            NBS_regret += N * (opt_NBS_reward - NBS_reward)
+
+            T_remain -= 2*N  
+
+            if hat_p_R - hat_p_m >= delta_hat:
+                L = m
+        i += 1
+        
+    return R, T_remain, NBS_regret, total_regret
+
+
+def Leftist(p_0, p_1, tau, time):
     # One Dimensional Leftist
 
     opt_reward = ComputeOptReward(p_0, p_1, tau) 
 
     tau_hat = 1
-    delta_hat = T
-    T_remain = T
+    delta_hat = time
+    T_remain = time
     epsilon = 1/8
-    ar = 1
-    N=math.ceil(math.log(2/err_delta)/(2*(epsilon**2)))   
+    ar = math.log(T) / sqrt(T)
+    N=math.ceil(math.log(2*(time*np.log2(time)))/(2*(epsilon**2)))   # log(2/delta)/2epsilon^2
     a = 1/sqrt(T)
     best_arm = 0
     
@@ -162,8 +292,8 @@ def Leftist(p_0, p_1, tau):
         # Pull arms 0 and ar, N times each
         hat_p_zero = np.mean(rng.binomial(1, p_0, N)) 
         leftist_regret += N * (opt_reward - p_0)    
-
         p_ar = (ar < tau) * p_0 + (ar >= tau) * p_1 
+        
         hat_p_ar = np.mean(rng.binomial(1, p_ar, N)) 
         ar_reward = (ar >= tau) * (p_1 - p_0) + p_0 - ar 
         leftist_regret += N * (opt_reward - ar_reward)    
@@ -174,7 +304,7 @@ def Leftist(p_0, p_1, tau):
         delta_hat = hat_p_ar-hat_p_zero
 
         if (delta_hat-epsilon) >= epsilon:
-            tau_hat, T_remain, NBS_regret, total_regret = NBS(epsilon,ar,T_remain, p_0, p_1, tau, leftist_regret) 
+            tau_hat, T_remain, NBS_regret, total_regret = NBS(epsilon,ar,T_remain, p_0, p_1, tau, leftist_regret, time) 
             best_arm, UCB_regret, total_regret = UCB(tau_hat,T_remain, p_0, p_1, tau, total_regret)
             T_remain = 0
             break
@@ -189,6 +319,133 @@ def Leftist(p_0, p_1, tau):
 
     if epsilon < a:   
         # Commit to zero for remaining rounds (never actually occurs)
+        # Theoretical regret
+        leftist_regret += (opt_reward - p_0)*T_remain
+        total_regret += leftist_regret
+
+        print("leftist commit 0 ", leftist_regret)
+
+    # tau returned for troubleshooting purposes
+    return tau, best_arm, leftist_regret, NBS_regret, UCB_regret, total_regret
+
+
+def Leftist_Alg13(p_0, p_1, tau, time):
+    # One Dimensional Leftist
+
+    opt_reward = ComputeOptReward(p_0, p_1, tau) 
+
+    tau_hat = 1
+    delta_hat = time
+    T_remain = time
+    epsilon = 1/8
+    ar = 1
+    N=math.ceil(math.log(2*(time*np.log2(time)))/(2*(epsilon**2)))   # log(2/delta)/2epsilon^2
+    a = 1/sqrt(T)
+    best_arm = 0
+    
+    leftist_regret, NBS_regret, UCB_regret, total_regret = 0, 0, 0, 0
+        
+    while epsilon >= a:
+
+        ##Check to see if there are enough pulls lefts to sample arm
+        ## TODO is it needed?
+        if (2*N > T_remain):
+            break
+        
+        # Pull arms 0 and ar, N times each
+        hat_p_zero = np.mean(rng.binomial(1, p_0, N)) 
+        leftist_regret += N * (opt_reward - p_0)    
+        p_ar = (ar < tau) * p_0 + (ar >= tau) * p_1 
+        
+        hat_p_ar = np.mean(rng.binomial(1, p_ar, N)) 
+        ar_reward = (ar >= tau) * (p_1 - p_0) + p_0 - ar 
+        leftist_regret += N * (opt_reward - ar_reward)    
+        
+        T_remain -= 2*N
+        
+        # Estimate of Delta
+        delta_hat = hat_p_ar-hat_p_zero
+
+        if (delta_hat-epsilon) >= epsilon:
+            tau_hat, T_remain, NBS_regret, total_regret = Alg13_NBS(epsilon,ar,T_remain, p_0, p_1, tau, leftist_regret, time) 
+            best_arm, UCB_regret, total_regret = UCB(tau_hat,T_remain, p_0, p_1, tau, total_regret)
+            T_remain = 0
+            break
+            
+        else:
+            if ar >= 8*epsilon:
+                ar = ar/2
+            epsilon = epsilon/2
+            N = 4*N
+
+        total_regret = leftist_regret
+
+    if epsilon < a:   
+        # Commit to zero for remaining rounds (never actually occurs)
+        # Theoretical regret
+        leftist_regret += (opt_reward - p_0)*T_remain
+        total_regret += leftist_regret
+
+        print("leftist commit 0 ", leftist_regret)
+
+    # tau returned for troubleshooting purposes
+    return tau, best_arm, leftist_regret, NBS_regret, UCB_regret, total_regret
+
+
+def Leftist_Alg14(p_0, p_1, tau, time):
+    # One Dimensional Leftist
+
+    opt_reward = ComputeOptReward(p_0, p_1, tau) 
+
+    tau_hat = 1
+    delta_hat = time
+    T_remain = time
+    epsilon = 1/8
+    ar = 1
+    N=math.ceil(math.log(2*(time*np.log2(time)))/(2*(epsilon**2)))   # log(2/delta)/2epsilon^2
+    a = 1/sqrt(T)
+    best_arm = 0
+    
+    leftist_regret, NBS_regret, UCB_regret, total_regret = 0, 0, 0, 0
+        
+    while epsilon >= a:
+
+        ##Check to see if there are enough pulls lefts to sample arm
+        ## TODO is it needed?
+        if (2*N > T_remain):
+            break
+        
+        # Pull arms 0 and ar, N times each
+        hat_p_zero = np.mean(rng.binomial(1, p_0, N)) 
+        leftist_regret += N * (opt_reward - p_0)    
+        p_ar = (ar < tau) * p_0 + (ar >= tau) * p_1 
+        
+        hat_p_ar = np.mean(rng.binomial(1, p_ar, N)) 
+        ar_reward = (ar >= tau) * (p_1 - p_0) + p_0 - ar 
+        leftist_regret += N * (opt_reward - ar_reward)    
+        
+        T_remain -= 2*N
+        
+        # Estimate of Delta
+        delta_hat = hat_p_ar-hat_p_zero
+
+        if (delta_hat-epsilon) >= epsilon:
+            tau_hat, T_remain, NBS_regret, total_regret = Alg14_NBS(epsilon,ar,T_remain, p_0, p_1, tau, leftist_regret, time) 
+            best_arm, UCB_regret, total_regret = UCB(tau_hat,T_remain, p_0, p_1, tau, total_regret)
+            T_remain = 0
+            break
+            
+        else:
+            if ar >= 8*epsilon:
+                ar = ar/2
+            epsilon = epsilon/2
+            N = 4*N
+
+        total_regret = leftist_regret
+
+    if epsilon < a:   
+        # Commit to zero for remaining rounds (never actually occurs)
+        # Theoretical regret
         leftist_regret += (opt_reward - p_0)*T_remain
         total_regret += leftist_regret
 
@@ -212,11 +469,10 @@ def run(i, seed):
     rng = np.random.default_rng(seed)
 
     # Experiment 1: Set p0 and p1 values, with a changing Tau value. 
-    exp1_leftist_results=Leftist(p_0, p_1, tau[i])
-    results1 = UCB_grid(K, p_0, p_1, tau[i])
+    exp1_leftist_results=Leftist(p_0, p_1, tau[i], T)
+    results1 = UCB_grid(K, p_0, p_1, tau[i], T)
 
-    return exp1_leftist_results,  results1
-
+    return exp1_leftist_results[:6],  results1[:3] #, leftist_results[:6]
 
 def run2(i, seed):
     K=int(T**(0.5))                 # number of partitions
@@ -224,23 +480,43 @@ def run2(i, seed):
     rng = np.random.default_rng(seed)
 
     # Experiment 2: Set p0 and Tau values, with a changing Delta (p1=p0+Delta) value.
-    leftist_results=Leftist(p_0,varying_p1[i], static_tau)
-    results2 = UCB_grid(K, p_0, varying_p1[i], static_tau)
+    leftist_results=Leftist(p_0,varying_p1[i], static_tau, T)
+    results2 = UCB_grid(K, p_0, varying_p1[i], static_tau, T)
 
-    return leftist_results, results2
+    return leftist_results[:6], results2[:3]
+
+def run3(i, seed):
+    K=int(varying_time[i]**(0.5))
+    global rng
+    rng = np.random.default_rng(seed)
+
+    # Experiment 3: Set p0, p1, and Tau values, with a changing time horizon, T.
+    leftist_results=Leftist(p_0,p_1, static_tau, varying_time[i])
+    results3 = UCB_grid(K, p_0, p_1, static_tau, varying_time[i])
+
+    return leftist_results[:6], results3[:3]
+
+
+def run4(i, seed):
+    global rng
+    rng = np.random.default_rng(seed)
+
+    # Experiment 4: NBS test
+    leftist_results2=Leftist_Alg13(p_0, p_1, tau[i], T)
+    leftist_results3=Leftist_Alg14(p_0, p_1, tau[i], T)
+
+    return leftist_results2[:6], leftist_results3[:6]
 
 
 # Global variables
 T=1000000
-epsilon_nbs = 1/T
-err_delta = 1/(T*np.log2(T))
 
 p_0 = 0.25
 static_delta = 0.1
 p_1 = p_0+static_delta
 static_tau = 0.1
 
-reps=1
+reps=25
 x=40                                # Number of unique values sampled
 n=x*reps
 
@@ -253,6 +529,11 @@ n2=x2*reps
 varying_p1 = np.empty(n2)
 delta = np.geomspace(1e-3, 0.5, x2)
 
+x3 = 6
+n3 = x3*reps
+varying_time = np.zeros(n3,dtype=int)
+time = np.geomspace(5e5, 16e6, x3, dtype=int)
+
 y=0
 for i in range(x):
     tau[y:y+reps]= taulin[i]
@@ -263,11 +544,23 @@ for i in range(x2):
     varying_p1[y:y+reps]=delta[i]+p_0  
     y=y+reps      
 
+y=0
+for i in range(x3):
+    varying_time[y:y+reps]=time[i]
+    y=y+reps      
+
+
 # Record keeping
 exp1_matrix_to_save=np.empty((n, 6))
 exp2_matrix_to_save=np.empty((n2, 6))
+exp3_matrix_to_save=np.empty((n3, 6))
 exp1_grid_UCB=np.empty((n, 3))
 exp2_grid_UCB=np.empty((n2, 3))
+exp3_grid_UCB=np.empty((n3, 3))
+
+# NBS testing
+alg2_new_nbs=np.empty((n, 6))
+alg3_nbs=np.empty((n, 6))
 
 if __name__ == "__main__":
     
@@ -279,33 +572,68 @@ if __name__ == "__main__":
     seed_sequence = np.random.SeedSequence(entropy)
     seeds = seed_sequence.spawn(n)
 
+
+    # Experiment 1 - varying tau
+    # with Pool(cpu) as pool:
+    #     exp1_left, exp1_GUCB = zip(*pool.starmap(run, zip(range(n), seeds)))
+
+    # pool.close()
+    # pool.join()
+
+    # Experiment 2 - varying delta
+    # s = seeds[0].spawn(n2)
+    # with Pool(cpu) as pool2:
+    #     exp2_left, exp2_GUCB = zip(*pool2.starmap(run2, zip(range(n2), s)))
+    #     # exp2_GUCB = pool2.starmap(run2, zip(range(n2), s))
+
+    # pool2.close()
+    # pool2.join()
+
+    # for i in range(n):
+    #     exp1_grid_UCB[i,:] = exp1_GUCB[i]
+    #     exp1_matrix_to_save[i,:] = exp1_left[i]
+
+    # for i in range(n2):   
+    #     exp2_matrix_to_save[i,:] = exp2_left[i]
+    #     exp2_grid_UCB[i,:] = exp2_GUCB[i]
+
+    # static_tau = 0.5
+    # p_1 = 0.425
+
+    # Experiment 3 - varying T
+    # s = seeds[1].spawn(n3)
+    # with Pool(cpu) as pool3:
+    #     exp3_left, exp3_GUCB = zip(*pool3.starmap(run3, zip(range(n3), s)))
+
+    # pool3.close()
+    # pool3.join()
+
+    # for i in range(n3):   
+    #     exp3_matrix_to_save[i,:] = exp3_left[i]
+    #     exp3_grid_UCB[i,:] = exp3_GUCB[i]
+
+    # Experiment 4 - Differing NBS
     with Pool(cpu) as pool:
-        exp1_left, exp1_GUCB = zip(*pool.starmap(run, zip(range(n), seeds)))
+        # old check with alg 2, alg 3
+        exp2_left, exp3_left = zip(*pool.starmap(run4, zip(range(n), seeds)))
 
     pool.close()
     pool.join()
 
-    s = seeds[0].spawn(n2)
-    with Pool(cpu) as pool2:
-        exp2_left, exp2_GUCB = zip(*pool2.starmap(run2, zip(range(n2), s)))
-        # exp2_GUCB = pool2.starmap(run2, zip(range(n2), s))
-
-    pool2.close()
-    pool2.join()
-
     for i in range(n):
-        exp1_grid_UCB[i,:] = exp1_GUCB[i]
-        exp1_matrix_to_save[i,:] = exp1_left[i]
-
-    for i in range(n2):   
-        exp2_matrix_to_save[i,:] = exp2_left[i]
-        exp2_grid_UCB[i,:] = exp2_GUCB[i]
+        alg2_new_nbs[i,:]=exp2_left[i]
+        alg3_nbs[i,:]= exp3_left[i]
 
     end = timer()
 
     print(f'elapsed time: {end - start}')
 
-    np.savetxt("exp1_grid_UCB.csv", exp1_grid_UCB, delimiter=',',header='tau, best arm, UCB regret') 
-    np.savetxt("exp1_saveddata.csv",exp1_matrix_to_save, delimiter=',',header='tau, best arm, Leftist regret, NSB regret, UCB regret, total regret')
-    np.savetxt("exp2_saveddata.csv",exp2_matrix_to_save, delimiter=',',header='tau, best arm, Leftist regret, NSB regret, UCB regret, total regret')
-    np.savetxt("exp2_grid_UCB.csv",exp2_grid_UCB, delimiter=',',header='tau, best arm, UCB regret')
+    # np.savetxt("exp1_grid_UCB.csv", exp1_grid_UCB, delimiter=',',header ='tau, best arm, UCB regret') 
+    # np.savetxt("exp1_saveddata.csv",exp1_matrix_to_save, delimiter=',',header ='tau, best arm, Leftist regret, NSB regret, UCB regret, total regret')
+    # np.savetxt("exp2_saveddata.csv",exp2_matrix_to_save, delimiter=',',header ='tau, best arm, Leftist regret, NSB regret, UCB regret, total regret')
+    # np.savetxt("exp2_grid_UCB.csv",exp2_grid_UCB, delimiter=',',header ='tau, best arm, UCB regret')
+    # np.savetxt("exp3_grid_UCB.csv", exp3_grid_UCB,  delimiter=',', header ='tau, best arm, UCB regret')
+    # np.savetxt("exp3_saveddata.csv", exp3_matrix_to_save,  delimiter=',', header ='tau, best arm, Leftist regret, NSB regret, UCB regret, total regret')  
+
+    np.savetxt("alg2_new_nbs.csv", alg2_new_nbs,  delimiter=',', header ='tau, best arm, Leftist regret, NSB regret, UCB regret, total regret')  
+    np.savetxt("alg3_nbs.csv", alg3_nbs,  delimiter=',', header ='tau, best arm, Leftist regret, NSB regret, UCB regret, total regret')  
