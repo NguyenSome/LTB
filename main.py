@@ -533,11 +533,11 @@ n=x*reps
 tau = np.empty(n)
 taulin = np.linspace(0.01,0.4,x)
 
-x2=15
+x2=30
 n2=x2*reps
 
 varying_p1 = np.empty(n2)
-delta = np.geomspace(1e-3, 0.5, x2)
+delta = np.geomspace(5e-3, 0.55, x2)
 
 x3 = 6
 n3 = x3*reps
