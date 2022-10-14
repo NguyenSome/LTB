@@ -37,7 +37,7 @@ def UCB_grid(par, p_0, p_1, tau, time):
         mu_hat = arr[1][arm_index]/n
         arr[3][arm_index] = mu_hat
 
-        ucb = mu_hat + sqrt((2  * np.log(time + 1)) / n)
+        ucb = mu_hat + sqrt((2  * np.log(time)) / n)
         arr[4][arm_index] = ucb
 
         # Theoretical regret
@@ -74,7 +74,7 @@ def UCB(tau_hat,N,p_0, p_1, tau, total_reg):
         # Updating UCB
         samp_num[arm_index] += 1
         mu_hat[arm_index]=samples[arm_index]/samp_num[arm_index]
-        ucb[arm_index] = mu_hat[arm_index]+ sqrt((2*np.log(N+1))/samp_num[arm_index])
+        ucb[arm_index] = mu_hat[arm_index]+ sqrt((2*np.log(N))/samp_num[arm_index])
             
         # Theoretical regret  
         ucb_reward = (arm >= tau)*(p_1-p_0) + p_0 - arm
