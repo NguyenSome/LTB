@@ -9,3 +9,5 @@ main.py is the code for the one-dimensional algorithms from the paper and runs t
 python main.py
 
 main_graphing.ipynb graphing.ipynb must be located in the same file as the saved outputs from main.py. The data files have been compress so please ensure the paths are correct before running the notebooks. main_graphing generate the plots used in the main paper and graphing.ipynb will generate the plots used in the appendix. If you changed the variables x or reps from the experimental setup in main.py, then you must also change them in notebooks to match before running. Run with Jupyter notebook.
+
+The paper can be found here: https://proceedings.mlr.press/v206/mehta23a/mehta23a.pdf
